@@ -1,0 +1,11 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+Flutter-*.iml
+.metadata
+build/
+ios/Pods/
+
+
