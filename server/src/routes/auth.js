@@ -1,24 +1,28 @@
 import { Router } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { User } from "../models/User.js";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-change-me";
-
-// Simple in-memory user store so you don't need a database for the demo
-const users = new Map(); // key: email, value: { id, name, email, passwordHash }
-let seq = 1;
 
 export function generateToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
 }
 
-export function requireAuth(req, res, next) {
+export async function requireAuth(req, res, next) {
   try {
     const header = req.headers.authorization || "";
     const token = header.startsWith("Bearer ") ? header.slice(7) : null;
     if (!token) return res.status(401).json({ error: "Missing token" });
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    
+    // Verify user still exists in database
+    const user = await User.findByPk(decoded.id);
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+    
+    req.user = user.get({ plain: true });
     next();
   } catch (err) {
     return res.status(401).json({ error: "Invalid token" });
@@ -32,26 +36,79 @@ router.post("/register", async (req, res) => {
   if (!name || !email || !password) {
     return res.status(400).json({ error: "name, email, password required" });
   }
-  const key = email.toLowerCase();
-  if (users.has(key)) {
-    return res.status(409).json({ error: "Email already registered" });
+
+  try {
+    // Check if user already exists
+    const existingUser = await User.findOne({ where: { email } });
+    if (existingUser) {
+      return res.status(409).json({ error: "Email already registered" });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await User.create({
+      name,
+      email: email.toLowerCase(),
+      passwordHash
+    });
+
+    const token = generateToken({ 
+      id: user.id, 
+      name: user.name, 
+      email: user.email 
+    });
+    
+    res.status(201).json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email 
+      } 
+    });
+  } catch (error) {
+    console.error("Registration error:", error);
+    res.status(500).json({ error: "Registration failed" });
   }
-  const passwordHash = await bcrypt.hash(password, 10);
-  const user = { id: `u${seq++}`, name, email, passwordHash };
-  users.set(key, user);
-  const token = generateToken({ id: user.id, name: user.name, email: user.email });
-  res.status(201).json({ token, user: { id: user.id, name: user.name, email: user.email } });
 });
 
 router.post("/login", async (req, res) => {
   const { email, password } = req.body || {};
-  const key = (email || "").toLowerCase();
-  const user = users.get(key);
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) return res.status(401).json({ error: "Invalid credentials" });
-  const token = generateToken({ id: user.id, name: user.name, email: user.email });
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email and password are required" });
+  }
+
+  try {
+    const user = await User.findOne({ 
+      where: { email: email.toLowerCase() } 
+    });
+    
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    
+    const ok = await bcrypt.compare(password, user.passwordHash);
+    if (!ok) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    
+    const token = generateToken({ 
+      id: user.id, 
+      name: user.name, 
+      email: user.email 
+    });
+    
+    res.json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        name: user.name, 
+        email: user.email 
+      } 
+    });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
 });
 
 // Update profile (name/email/password) - protected route

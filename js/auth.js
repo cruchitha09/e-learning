@@ -1,4 +1,51 @@
-const API_BASE = "http://localhost:4000";
+const API_BASE = "http://localhost:3001";
+
+// Helper function for making API requests
+async function apiRequest(url, options = {}) {
+  const defaultOptions = {
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    mode: 'cors',
+    cache: 'no-cache',
+    redirect: 'follow',
+    referrerPolicy: 'no-referrer',
+    credentials: 'include' // Important for cookies/sessions if using them
+  };
+
+  console.log('API Request:', {
+    url: API_BASE + url,
+    method: options.method || 'GET',
+    body: options.body ? JSON.parse(options.body) : null,
+    headers: { ...defaultOptions.headers, ...(options.headers || {}) }
+  });
+
+  // Merge default options with provided options
+  const requestOptions = {
+    ...defaultOptions,
+    ...options,
+    headers: {
+      ...defaultOptions.headers,
+      ...(options.headers || {})
+    },
+    body: options.body ? JSON.parse(JSON.stringify(options.body)) : undefined
+  };
+
+  try {
+    const response = await fetch(API_BASE + url, requestOptions);
+    const data = await response.json().catch(() => ({}));
+    
+    if (!response.ok) {
+      throw new Error(data.error || `HTTP error! status: ${response.status}`);
+    }
+    
+    return data;
+  } catch (error) {
+    console.error('API request failed:', error);
+    throw error;
+  }
+}
 
 let authToken = localStorage.getItem("staxtech_token") || null;
 let authUser = JSON.parse(localStorage.getItem("staxtech_user") || "null");
@@ -39,211 +86,115 @@ function logoutUser() {
 
 async function loginUser(e) {
   e.preventDefault();
-  const email = document.getElementById("login-email").value;
-  const password = document.getElementById("login-password").value;
+  const form = e.target;
+  const email = form.querySelector("#login-email")?.value;
+  const password = form.querySelector("#login-password")?.value;
+  const loginBtn = form.querySelector("button[type='submit']");
+  
+  const originalBtnText = loginBtn?.innerHTML || '';
+  if (loginBtn) {
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Logging in...';
+  }
 
   try {
-    const res = await fetch(API_BASE + "/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const data = await apiRequest('/api/auth/login', {
+      method: 'POST',
       body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error || "Login failed");
-      return;
+    
+    if (!data.token || !data.user) {
+      throw new Error("Invalid response from server");
     }
+    
     authToken = data.token;
     authUser = data.user;
     localStorage.setItem("staxtech_token", authToken);
     localStorage.setItem("staxtech_user", JSON.stringify(authUser));
+    
+    // Clear form
+    if (form) {
+      form.reset();
+    }
     showDashboard();
   } catch (err) {
-    console.error(err);
-    alert("Network error during login");
+    console.error('Login error:', err);
+    alert(err.message || "An error occurred during login. Please try again.");
+  } finally {
+    if (loginBtn) {
+      loginBtn.disabled = false;
+      loginBtn.innerHTML = originalBtnText;
+    }
   }
 }
 
 async function signupUser(e) {
   e.preventDefault();
-  const name = document.getElementById("signup-name").value;
-  const email = document.getElementById("signup-email").value;
-  const password = document.getElementById("signup-password").value;
+  const form = e.target;
+  const name = document.getElementById("signup-name")?.value;
+  const email = document.getElementById("signup-email")?.value;
+  const password = document.getElementById("signup-password")?.value;
+  const signupBtn = form.querySelector("button[type='submit']");
+  
+  // Safely handle button state
+  let originalBtnText = signupBtn?.innerHTML || '';
+  if (signupBtn) {
+    signupBtn.disabled = true;
+    signupBtn.textContent = 'Creating account...';
+  }
 
   try {
-    const res = await fetch(API_BASE + "/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    const data = await apiRequest('/api/auth/register', {
+      method: 'POST',
       body: JSON.stringify({ name, email, password })
     });
-    const data = await res.json();
-    if (!res.ok) {
-      alert(data.error || "Signup failed");
-      return;
+    
+    if (!data.token || !data.user) {
+      throw new Error("Invalid response from server");
     }
+    
     authToken = data.token;
     authUser = data.user;
     localStorage.setItem("staxtech_token", authToken);
     localStorage.setItem("staxtech_user", JSON.stringify(authUser));
+    
+    // Clear form if it exists
+    const signupForm = document.getElementById("signup-form");
+    if (signupForm) {
+      signupForm.reset();
+    }
     showDashboard();
   } catch (err) {
-    console.error(err);
-    alert("Network error during signup");
+    console.error('Signup error:', err);
+    alert(err.message || "An error occurred during signup. Please try again.");
+  } finally {
+    if (signupBtn) {
+      signupBtn.disabled = false;
+      signupBtn.innerHTML = originalBtnText;
+    }
   }
 }
 
 // Auto-show dashboard if already logged in
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", function() {
   if (authToken && authUser) {
     showDashboard();
   }
 });
 
-// Auth + API helpers for accounts.html (vanilla JS)
-(function () {
-  window.toggleSidebar = function () {
-    document.getElementById("sidebar").classList.toggle("active");
-  };
+// Event listeners
+document.addEventListener("DOMContentLoaded", function() {
+  const loginForm = document.getElementById("login-form");
+  const signupForm = document.getElementById("signup-form");
+  const logoutBtn = document.getElementById("logout-btn");
+  const profileBtn = document.getElementById("profile-btn");
+  const backToDashboardBtn = document.getElementById("back-to-dashboard");
+  const toggleSidebarBtn = document.querySelector(".toggle-sidebar");
 
-  const API_BASE = localStorage.getItem("API_BASE") || "http://localhost:4000";
-  let JWT = localStorage.getItem("JWT") || "";
-  let CURRENT_USER = null;
-
-  function setJWT(token) {
-    JWT = token || "";
-    if (JWT) localStorage.setItem("JWT", JWT);
-    else localStorage.removeItem("JWT");
-  }
-
-  function show(sectionId) {
-    document.getElementById("auth-section").classList.add("hidden");
-    document.getElementById("dashboard-section").classList.add("hidden");
-    document.getElementById("profile-section").classList.add("hidden");
-    document.getElementById(sectionId).classList.remove("hidden");
-  }
-
-  async function api(path, opts = {}) {
-    const headers = {
-      "Content-Type": "application/json",
-      ...(JWT ? { Authorization: `Bearer ${JWT}` } : {}),
-    };
-    const res = await fetch(`${API_BASE}/api${path}`, { headers, ...opts });
-    const text = await res.text();
-    let data;
-    try {
-      data = text ? JSON.parse(text) : {};
-    } catch {
-      data = { error: text || "Invalid response" };
-    }
-    if (!res.ok) throw new Error(data?.error || `Request failed (${res.status})`);
-    return data;
-  }
-
-  function renderDashboard(user) {
-    CURRENT_USER = user;
-    const el = document.getElementById("welcome-name");
-    if (el) el.textContent = user?.name ? `Welcome, ${user.name}` : "";
-    if (user && user.name) {
-      localStorage.setItem("forumAuthor", user.name);
-    }
-    fillProfileForm(user);
-  }
-
-  function fillProfileForm(user) {
-    if (!user) return;
-    const nameInput = document.getElementById("profile-name");
-    const emailInput = document.getElementById("profile-email");
-    if (nameInput) nameInput.value = user.name || "";
-    if (emailInput) emailInput.value = user.email || "";
-  }
-
-  window.loginUser = async function (e) {
-    e.preventDefault();
-    const email = document.getElementById("login-email").value.trim();
-    const password = document.getElementById("login-password").value;
-    try {
-      const data = await api("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-      });
-      setJWT(data.token);
-      renderDashboard(data.user);
-      show("dashboard-section");
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  window.signupUser = async function (e) {
-    e.preventDefault();
-    const name = document.getElementById("signup-name").value.trim();
-    const email = document.getElementById("signup-email").value.trim();
-    const password = document.getElementById("signup-password").value;
-    try {
-      const data = await api("/auth/register", {
-        method: "POST",
-        body: JSON.stringify({ name, email, password }),
-      });
-      setJWT(data.token);
-      renderDashboard(data.user);
-      show("dashboard-section");
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  window.saveProfile = async function (e) {
-    e.preventDefault();
-    const name = document.getElementById("profile-name").value.trim();
-    const email = document.getElementById("profile-email").value.trim();
-    const password = document.getElementById("profile-password").value;
-    const confirm = document.getElementById("profile-password-confirm").value;
-    if (password && password !== confirm) {
-      alert("Passwords do not match");
-      return;
-    }
-    try {
-      const body = { name, email };
-      if (password) body.password = password;
-      const data = await api("/auth/profile", {
-        method: "PUT",
-        body: JSON.stringify(body),
-      });
-      setJWT(data.token);
-      renderDashboard(data.user);
-      alert("Profile updated");
-      show("dashboard-section");
-    } catch (err) {
-      alert(err.message);
-    }
-  };
-
-  async function fetchMe() {
-    try {
-      const data = await api("/me");
-      renderDashboard(data.user);
-      show("dashboard-section");
-    } catch (err) {
-      setJWT("");
-      show("auth-section");
-    }
-  }
-
-  window.logoutUser = function () {
-    setJWT("");
-    CURRENT_USER = null;
-    localStorage.removeItem("forumAuthor");
-    show("auth-section");
-  };
-  window.showProfile = function () {
-    show("profile-section");
-  };
-  window.backToDashboard = function () {
-    show("dashboard-section");
-  };
-
-  document.addEventListener("DOMContentLoaded", () => {
-    if (JWT) fetchMe();
-    else show("auth-section");
-  });
-})();
+  if (loginForm) loginForm.addEventListener("submit", loginUser);
+  if (signupForm) signupForm.addEventListener("submit", signupUser);
+  if (logoutBtn) logoutBtn.addEventListener("click", logoutUser);
+  if (profileBtn) profileBtn.addEventListener("click", showProfile);
+  if (backToDashboardBtn) backToDashboardBtn.addEventListener("click", backToDashboard);
+  if (toggleSidebarBtn) toggleSidebarBtn.addEventListener("click", toggleSidebar);
+});
