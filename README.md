@@ -1,19 +1,72 @@
-# E-Learn Monorepo
+# E-Learning Platform (Full Stack Web Application)
 
-This repository now contains:
-- `web`: React app (Vite) ported from your static HTML
-- `mobile`: Flutter app skeleton with basic API calls
-- `server`: Node/Express backend (optional)
+## Overview
+This project is a full-stack e-learning platform built to demonstrate
+frontend development, backend API integration, and optional mobile
+application support. The system allows users to access learning content
+through a modern web interface backed by a server-side API.
 
-You asked for React and Flutter code in GitHub — both are included.
+## Tech Stack
+- Frontend: HTML, CSS, JavaScript, React (Vite)
+- Backend: Node.js, Express.js
+- Database: MySQL / MongoDB (as configured)
+- Mobile Application: Flutter (optional module)
 
-## Folders
-- `web/` → React app entry at `src/main.jsx`, routes in `src/App.jsx`
-- `mobile/` → Flutter app entry at `lib/main.dart`
-- `server/` → Express API entry at `src/app.js` (optional)
+## Project Structure
 
-## Notes
-- React dev server expects API at `/api` (proxy to `http://localhost:4000`).
-- Flutter app uses `http://localhost:4000` by default; change `baseUrl` in `lib/main.dart` if needed.
+e-learning/  
+├── web/            — React frontend (Vite)  
+├── server/         — Node.js + Express backend  
+├── mobile/         — Flutter mobile application  
+├── legacy-html/    — Initial static HTML prototype  
+├── js/             — Shared JavaScript utilities  
+├── images/         — Static assets  
+└── README.md  
 
+## Folder Details
 
+### Web (Frontend)
+- Built using React with Vite  
+- Entry point: `web/src/main.jsx`  
+- Routing logic: `web/src/App.jsx`  
+- Handles UI rendering and user interactions  
+
+### Server (Backend)
+- Built using Node.js and Express.js  
+- Entry point: `server/src/app.js`  
+- Manages authentication, API routes, and database operations  
+- Exposes RESTful APIs consumed by web and mobile clients  
+
+### Mobile (Optional)
+- Flutter application skeleton  
+- Entry point: `mobile/lib/main.dart`  
+- Communicates with backend APIs  
+
+### Legacy HTML
+- Contains early static HTML pages created before migrating to React  
+- Kept for reference and documentation purposes  
+
+## Features
+- User authentication (login and registration)  
+- Course listing and access functionality  
+- RESTful API architecture  
+- Responsive user interface  
+- Modular monorepo-style project structure  
+
+## How to Run the Project Locally
+
+### Backend
+```bash
+cd server
+npm install
+npm start
+
+##Frontend
+cd web
+npm install
+npm run dev
+
+##Mobile (Optional)
+cd mobile
+flutter pub get
+flutter run
